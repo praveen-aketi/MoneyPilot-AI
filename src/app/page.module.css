@@ -1,0 +1,110 @@
+.header {
+  margin-bottom: 3rem;
+  padding-top: 1rem;
+}
+
+.title {
+  font-size: 2.25rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+}
+
+.subtitle {
+  color: var(--text-secondary);
+  font-size: 1.125rem;
+  max-width: 600px;
+  line-height: 1.6;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+
+.card {
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  position: relative;
+  overflow: hidden;
+  background: var(--surface);
+  /* Ensure background covers any transparent parent issues */
+}
+
+/* Removed dark mode gradient overlay */
+.card::before {
+  display: none;
+}
+
+.cardLabel {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cardValue {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.cardTrend {
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  padding: 0.25rem 0.625rem;
+  border-radius: 99px;
+  width: fit-content;
+}
+
+/* Optimize trend badges for light mode */
+.trendUp {
+  color: #059669;
+  /* Darker Emerald for readability */
+  background: #d1fae5;
+  /* Light Emerald bg */
+}
+
+.trendDown {
+  color: #dc2626;
+  /* Darker Red */
+  background: #fee2e2;
+  /* Light Red bg */
+}
+
+.chartsGrid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1.5rem;
+}
+
+.chartCard {
+  padding: 1.5rem;
+  min-height: 400px;
+  /* Slightly reduced for tighter look */
+}
+
+.chartTitle {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 2rem;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+@media (max-width: 1024px) {
+  .chartsGrid {
+    grid-template-columns: 1fr;
+  }
+}

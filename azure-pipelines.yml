@@ -1,0 +1,167 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  # TODO: Replace these with your actual values or Pipeline Variables
+  dockerRegistryServiceConnection: 'azure-registry-connection' # Create this in ADO
+  imageRepository: 'moneypilot'
+  containerRegistry: 'your-acr-name.azurecr.io' # Replace with your ACR
+  dockerfilePathFrontend: 'Dockerfile'
+  dockerfilePathBackend: 'backend/Dockerfile'
+  dockerfilePathAi: 'ml-service/Dockerfile'
+  tag: '$(Build.BuildId)'
+  
+  # Kubernetes Settings
+  kubernetesServiceConnection: 'azure-kubernetes-connection' # Create this in ADO
+  namespace: 'default'
+
+stages:
+  - stage: CI_Build_Test
+    displayName: 'Build & Test'
+    jobs:
+      - job: Frontend_Test
+        displayName: 'Test Frontend'
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '20.x'
+          - script: |
+              npm ci
+              npm run lint
+            displayName: 'Frontend Lint'
+
+      - job: Backend_Test
+        displayName: 'Test Backend'
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '20.x'
+          - script: |
+              cd backend
+              npm ci
+              npm run lint
+              npm run test
+            displayName: 'Backend Lint & Test'
+
+      - job: AI_Test
+        displayName: 'Test AI Service'
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.10'
+          - script: |
+              cd ml-service
+              pip install -r requirements.txt
+              pip install flake8
+              flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+            displayName: 'AI Lint'
+
+  - stage: Build_Push
+    displayName: 'Build & Push Docker Images'
+    dependsOn: CI_Build_Test
+    condition: succeeded()
+    jobs:
+      - job: Build
+        displayName: 'Build & Push Containers'
+        steps:
+          - task: Docker@2
+            displayName: 'Build and Push Frontend'
+            inputs:
+              command: buildAndPush
+              repository: $(imageRepository)/frontend
+              dockerfile: $(dockerfilePathFrontend)
+              containerRegistry: $(dockerRegistryServiceConnection)
+              tags: |
+                $(tag)
+                latest
+
+          - task: Docker@2
+            displayName: 'Build and Push Backend'
+            inputs:
+              command: buildAndPush
+              repository: $(imageRepository)/backend
+              dockerfile: $(dockerfilePathBackend)
+              containerRegistry: $(dockerRegistryServiceConnection)
+              tags: |
+                $(tag)
+                latest
+
+          - task: Docker@2
+            displayName: 'Build and Push AI Engine'
+            inputs:
+              command: buildAndPush
+              repository: $(imageRepository)/ai-engine
+              dockerfile: $(dockerfilePathAi)
+              containerRegistry: $(dockerRegistryServiceConnection)
+              tags: |
+                $(tag)
+                latest
+
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: '$(Pipeline.Workspace)/s/k8s'
+              artifact: 'manifests'
+              publishLocation: 'pipeline'
+
+  - stage: Deploy
+    displayName: 'Deploy to AKS'
+    dependsOn: Build_Push
+    condition: succeeded()
+    jobs:
+      - deployment: Deploy
+        displayName: 'Deploy to AKS'
+        environment: 'production'
+        pool:
+          vmImage: 'ubuntu-latest'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: KubernetesManifest@1
+                  displayName: 'Deploy Database'
+                  inputs:
+                    action: 'deploy'
+                    connectionType: 'kubernetesServiceConnection'
+                    kubernetesServiceConnection: $(kubernetesServiceConnection)
+                    namespace: $(namespace)
+                    manifests: |
+                      $(Pipeline.Workspace)/manifests/postgres.yaml
+
+                - task: KubernetesManifest@1
+                  displayName: 'Deploy Backend'
+                  inputs:
+                    action: 'deploy'
+                    connectionType: 'kubernetesServiceConnection'
+                    kubernetesServiceConnection: $(kubernetesServiceConnection)
+                    namespace: $(namespace)
+                    manifests: |
+                      $(Pipeline.Workspace)/manifests/backend.yaml
+                    containers: |
+                      $(containerRegistry)/$(imageRepository)/backend:$(tag)
+
+                - task: KubernetesManifest@1
+                  displayName: 'Deploy AI Engine'
+                  inputs:
+                    action: 'deploy'
+                    connectionType: 'kubernetesServiceConnection'
+                    kubernetesServiceConnection: $(kubernetesServiceConnection)
+                    namespace: $(namespace)
+                    manifests: |
+                      $(Pipeline.Workspace)/manifests/ai-engine.yaml
+                    containers: |
+                      $(containerRegistry)/$(imageRepository)/ai-engine:$(tag)
+
+                - task: KubernetesManifest@1
+                  displayName: 'Deploy Frontend'
+                  inputs:
+                    action: 'deploy'
+                    connectionType: 'kubernetesServiceConnection'
+                    kubernetesServiceConnection: $(kubernetesServiceConnection)
+                    namespace: $(namespace)
+                    manifests: |
+                      $(Pipeline.Workspace)/manifests/frontend.yaml
+                    containers: |
+                      $(containerRegistry)/$(imageRepository)/frontend:$(tag)

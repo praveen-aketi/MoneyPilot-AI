@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+spec:
+  type: LoadBalancer
+  selector:
+    app: frontend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: moneypilot-frontend:latest # Replaced by pipeline
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: "http://backend:4000" # NOTE: In a real K8s setup, this needs to be the public URL of the backend or handled via ingress/proxy because Next.js runs client-side sometimes. For 'standalone' + server components, internal DNS might work for SSR, but for client fetches, it needs a public route.
+            # Simplified for now assuming SSR or internal routing availability.
